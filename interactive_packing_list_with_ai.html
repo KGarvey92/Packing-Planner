@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KNK Packing Planner</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        [x-cloak] { display: none !important; }
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; color: black !important; }
+            .print-card { box-shadow: none !important; border: 1px solid #e2e8f0 !important; page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+    <div x-data="packingApp()" x-init="initApp()" x-cloak class="max-w-6xl mx-auto p-4 md:p-8 space-y-8">
+        
+        <!-- Header & Progress Dashboard -->
+        <header class="bg-gradient-to-r from-blue-800 to-indigo-900 text-white rounded-2xl p-6 md:p-8 shadow-xl relative overflow-hidden no-print">
+            <!-- Decorative Background Element -->
+            <div class="absolute right-0 bottom-0 opacity-10 pointer-events-none transform translate-y-6 translate-x-6">
+                <svg class="w-64 h-64 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M10.18 9c-.39 0-.71-.32-.71-.71V3.71c0-.39.32-.71.71-.71s.71.32.71.71v4.58c0 .39-.32.71-.71.71zM14 9c-.39 0-.71-.32-.71-.71V3.71c0-.39.32-.71.71-.71s.71.32.71.71v4.58c0 .39-.32.71-.71.71zm-8 4c0-3.31 2.69-6 6-6s6 2.69 6 6c0 2.22-1.21 4.15-3 5.19l-1.5 4.5c-.1.3-.38.5-.71.5h-1.58c-.33 0-.61-.2-.71-.5L11 18.19c-1.79-1.04-3-2.97-3-5.19z"/>
+                </svg>
+            </div>
+            
+            <div class="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div>
+                    <div class="flex flex-wrap items-center gap-2 mb-2">
+                        <span class="bg-orange-500 text-white text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">1 Month UK Trip</span>
+                        <span class="bg-blue-700/50 text-white text-xs px-2.5 py-1 rounded-full border border-blue-500/30">Kieran, Karen &amp; Nico (18M)</span>
+                        <span class="bg-emerald-600 text-white text-xs px-2.5 py-1 rounded-full">Laundry On-site</span>
+                        <span class="bg-violet-600 text-white text-xs px-2.5 py-1 rounded-full font-semibold flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> Gemini AI Active
+                        </span>
+                    </div>
+                    <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight">KNK Packing Planner</h1>
+                    <p class="text-blue-200 mt-2 text-sm md:text-base max-w-xl">Track, edit, and coordinate your family travel essentials across custom suitcases and bags with real-time AI packing insights.</p>
+                </div>
+                
+                <!-- Circular/Value Progress Counter -->
+                <div class="bg-white/10 backdrop-blur-md border border-white/10 rounded-xl p-4 flex items-center gap-4 w-full md:w-auto">
+                    <div class="relative flex items-center justify-center w-16 h-16 shrink-0">
+                        <!-- Progress Circle -->
+                        <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                            <path class="text-white/20" stroke-width="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                            <path class="text-orange-400 transition-all duration-500 ease-out" :stroke-dasharray="`${getProgressPercent()}, 100`" stroke-width="3.5" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                        </svg>
+                        <div class="absolute text-center">
+                            <span class="text-base font-bold" x-text="`${Math.round(getProgressPercent())}%`">0%</span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-xs uppercase tracking-wider text-blue-200 font-semibold">Overall Progress</div>
+                        <div class="text-xl font-extrabold" x-text="`${getPackedCount()} / ${getTotalCount()} Items`">0 / 0 Items</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs for Primary List vs AI Studio -->
+        <div class="flex border-b border-slate-200 no-print">
+            <button @click="activeTab = 'checklist'" :class="activeTab === 'checklist' ? 'border-blue-600 text-blue-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'" class="py-4 px-6 border-b-2 font-medium text-sm transition duration-150 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                My Checklist
+            </button>
+            <button @click="activeTab = 'ai-companion'" :class="activeTab === 'ai-companion' ? 'border-violet-600 text-violet-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'" class="py-4 px-6 border-b-2 font-medium text-sm transition duration-150 flex items-center gap-2 relative">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                AI Packing Hub
+                <span class="absolute top-2 right-1 flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-violet-500"></span>
+                </span>
+            </button>
+        </div>
+
+        <!-- TAB 1: THE PACKING CHECKLIST -->
+        <div x-show="activeTab === 'checklist'" class="space-y-6">
+            <!-- Controls & Utility Actions Bar -->
+            <section class="flex flex-col gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-100 no-print">
+                <!-- Categories Filtering -->
+                <div class="flex flex-wrap gap-1.5 items-center">
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mr-2">Categories:</span>
+                    <button @click="activeCategory = 'all'" :class="activeCategory === 'all' ? 'bg-blue-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'" class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition duration-150">
+                        All Categories
+                    </button>
+                    <template x-for="cat in categories">
+                        <button @click="activeCategory = cat.id" :class="activeCategory === cat.id ? 'bg-blue-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'" class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition duration-150">
+                            <span x-text="cat.name"></span>
+                        </button>
+                    </template>
+                </div>
+
+                <!-- Suitcases / Bags Filtering -->
+                <div class="flex flex-wrap gap-1.5 items-center border-t border-slate-100 pt-3">
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mr-2">Luggage Filter:</span>
+                    <button @click="activeBag = 'all'" :class="activeBag === 'all' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'" class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition duration-150">
+                        All Luggage
+                    </button>
+                    <template x-for="bag in bags" :key="bag.id">
+                        <button @click="activeBag = bag.id" :class="activeBag === bag.id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'" class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition duration-150 flex items-center gap-1.5">
+                            <span x-text="bag.name"></span>
+                            <span :class="activeBag === bag.id ? 'bg-indigo-800 text-white' : 'bg-slate-200 text-slate-700'" class="text-[10px] font-bold px-1.5 py-0.5 rounded-full" x-text="getItemsCountInBag(bag.id)"></span>
+                        </button>
+                    </template>
+                </div>
+                
+                <div class="flex flex-wrap gap-2 justify-between items-center border-t border-slate-100 pt-3">
+                    <div class="flex gap-2">
+                        <button @click="openRestoreModal()" class="flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg text-sm font-semibold border border-indigo-200 transition duration-150">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15H19M9 5h4V1M17 5h-4V1"/></svg>
+                            Restore Defaults
+                        </button>
+                    </div>
+                    <div class="flex gap-2">
+                        <button @click="printList()" class="flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold transition duration-150">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                            Print Checklist
+                        </button>
+                        <button @click="openResetModal()" class="flex items-center justify-center gap-2 bg-rose-50 hover:bg-rose-100 text-rose-600 px-4 py-2 rounded-lg text-sm font-semibold border border-rose-200 transition duration-150">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            Reset Checked
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Dynamic Adding Item Interface -->
+            <section class="bg-white p-5 rounded-xl shadow-sm border border-slate-100 no-print">
+                <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Add Custom Item</h2>
+                <form @submit.prevent="addItem()" class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div class="md:col-span-1">
+                        <input type="text" x-model="newItem.name" placeholder="Item Name (e.g. Favorite bedtime book)" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" required>
+                    </div>
+                    <div>
+                        <select x-model="newItem.category" class="w-full px-3 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" title="Category Selection">
+                            <template x-for="cat in categories">
+                                <option :value="cat.id" x-text="cat.name"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div class="flex gap-2">
+                        <select x-model="newItem.bagId" class="w-2/3 px-3 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" title="Luggage Assignment">
+                            <template x-for="bag in bags" :key="bag.id">
+                                <option :value="bag.id" x-text="bag.name"></option>
+                            </template>
+                        </select>
+                        <input type="number" min="1" x-model="newItem.totalQty" placeholder="Qty" class="w-1/3 px-2 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-center" title="Quantity">
+                    </div>
+                    <button type="submit" class="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2.5 px-4 rounded-lg text-sm transition duration-150 flex items-center justify-center gap-2 shadow-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        Add to List
+                    </button>
+                </form>
+            </section>
+
+            <!-- EMPTY CHECKLIST STATE -->
+            <div x-show="items.length === 0" class="bg-indigo-50 rounded-2xl border border-indigo-100 p-8 md:p-12 text-center space-y-4 shadow-sm no-print">
+                <div class="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto text-indigo-600">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                </div>
+                <h3 class="text-xl font-extrabold text-slate-800">Your Packing List is Empty</h3>
+                <p class="text-slate-600 max-w-md mx-auto text-sm md:text-base">Restore the complete original checklist containing Kieran, Karen, and Nico's pre-configured clothing allotments, high-priority travel documents, and specific baby gear.</p>
+                <button @click="loadDefaultItems(); saveToStorage();" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-6 py-3 rounded-xl transition shadow-md">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15H19M9 5h4V1"/></svg>
+                    Restore Original Packing List
+                </button>
+            </div>
+
+            <!-- Main Packing List Content -->
+            <div x-show="items.length > 0" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                <!-- List Items Display -->
+                <div class="lg:col-span-2 space-y-6">
+                    <template x-for="cat in categories" :key="cat.id">
+                        <div x-show="(activeCategory === 'all' || activeCategory === cat.id) && filteredItems(cat.id).length > 0" class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden print-card">
+                            
+                            <!-- Header of Category Card -->
+                            <div class="bg-slate-50 px-5 py-4 border-b border-slate-100 flex justify-between items-center">
+                                <div class="flex items-center gap-3">
+                                    <div class="p-2 rounded-lg bg-blue-50 text-blue-800" x-html="cat.icon"></div>
+                                    <h3 class="text-lg font-bold text-slate-800" x-text="cat.name">Category Name</h3>
+                                </div>
+                                <span class="bg-blue-100/60 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-full" x-text="`${getPackedCountInCategory(cat.id)} / ${getTotalCountInCategory(cat.id)}`"></span>
+                            </div>
+
+                            <!-- Checkbox Items List -->
+                            <div class="divide-y divide-slate-100 max-h-[550px] overflow-y-auto">
+                                <template x-for="item in filteredItems(cat.id)" :key="item.id">
+                                    <div :class="item.packedQty === item.totalQty ? 'bg-emerald-50/20' : (item.packedQty > 0 ? 'bg-amber-50/10' : 'hover:bg-slate-50/50')" class="flex flex-col p-4 transition-all duration-150">
+                                        <div class="flex items-center justify-between gap-4">
+                                            <!-- Checkbox and Name container -->
+                                            <div class="flex items-center gap-4 flex-1">
+                                                <!-- Custom Checkbox (Toggles Complete / Incomplete) -->
+                                                <button @click="toggleItemFull(item.id)" class="relative focus:outline-none focus:ring-2 focus:ring-blue-400 rounded shrink-0">
+                                                    <div :class="item.packedQty === item.totalQty ? 'bg-emerald-500 border-emerald-500' : (item.packedQty > 0 ? 'bg-amber-500 border-amber-500' : 'border-slate-300 bg-white')" class="w-6 h-6 rounded-md border flex items-center justify-center transition-all duration-150">
+                                                        <template x-if="item.packedQty === item.totalQty">
+                                                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                                            </svg>
+                                                        </template>
+                                                        <template x-if="item.packedQty > 0 && item.packedQty < item.totalQty">
+                                                            <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M20 12H4" />
+                                                            </svg>
+                                                        </template>
+                                                    </div>
+                                                </button>
+
+                                                <!-- Item textual content -->
+                                                <div @click="toggleItemFull(item.id)" class="cursor-pointer flex-1">
+                                                    <div class="flex flex-wrap items-center gap-2">
+                                                        <p :class="item.packedQty === item.totalQty ? 'line-through text-slate-400 font-normal' : 'text-slate-700 font-medium'" class="text-sm md:text-base" x-text="item.name"></p>
+
+                                                        <!-- Partial Status Badge -->
+                                                        <template x-if="item.packedQty > 0 && item.packedQty < item.totalQty">
+                                                            <span class="bg-amber-100 text-amber-800 text-[10px] px-1.5 py-0.5 rounded font-bold">In Progress</span>
+                                                        </template>
+                                                    </div>
+                                                    <p x-show="item.notes" class="text-xs text-slate-400 mt-0.5" x-text="item.notes"></p>
+                                                </div>
+                                            </div>
+
+                                            <!-- Interactive Bag Tagging & Quantities counter controls -->
+                                            <div class="flex items-center gap-3 no-print">
+                                                
+                                                <!-- Suitcase Selector Menu -->
+                                                <div class="relative">
+                                                    <select :value="item.bagId || 'unassigned'" @change="updateItemBag(item.id, $event.target.value)" class="bg-slate-100 text-slate-600 border border-slate-200 text-xs rounded px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 max-w-[140px] truncate" title="Assign item to bag">
+                                                        <template x-for="bag in bags" :key="bag.id">
+                                                            <option :value="bag.id" x-text="bag.name"></option>
+                                                        </template>
+                                                    </select>
+                                                </div>
+
+                                                <!-- packed count modifiers -->
+                                                <div class="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200">
+                                                    <!-- Decrement packed count -->
+                                                    <button @click.stop="adjustPacked(item.id, -1)" class="w-6 h-6 flex items-center justify-center bg-white rounded shadow-sm text-slate-600 hover:bg-slate-50 font-extrabold text-sm transition select-none">-</button>
+                                                    
+                                                    <!-- Packed Value status indicator -->
+                                                    <div class="px-2 text-xs font-extrabold text-slate-700 flex items-center gap-1">
+                                                        <span x-text="item.packedQty" class="text-sm"></span>
+                                                        <span class="text-slate-400">/</span>
+                                                        <!-- Editable total value -->
+                                                        <input type="number" min="1" :value="item.totalQty" @change="updateTotalQty(item.id, $event.target.value)" class="w-8 bg-transparent text-center font-extrabold text-xs focus:ring-1 focus:ring-blue-500 border border-transparent hover:border-slate-300 rounded p-0.5 text-slate-800 focus:bg-white" title="Adjust total limit">
+                                                    </div>
+
+                                                    <!-- Increment packed count -->
+                                                    <button @click.stop="adjustPacked(item.id, 1)" class="w-6 h-6 flex items-center justify-center bg-white rounded shadow-sm text-slate-600 hover:bg-slate-50 font-extrabold text-sm transition select-none">+</button>
+                                                </div>
+
+                                                <!-- Removal control -->
+                                                <button @click="deleteItem(item.id)" class="text-slate-300 hover:text-rose-500 p-1.5 rounded-lg transition duration-150" title="Remove Item">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Row-level Multi-quantity packing status progress bar -->
+                                        <template x-if="item.totalQty > 1">
+                                            <div class="mt-2 w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                                <div :class="item.packedQty === item.totalQty ? 'bg-emerald-500' : 'bg-amber-500'" 
+                                                     class="h-full transition-all duration-300 ease-out" 
+                                                     :style="`width: ${(item.packedQty / item.totalQty) * 100}%`">
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Side Guidance, Luggage Manager & Tips Widget -->
+                <div class="space-y-6 no-print">
+                    
+                    <!-- LUGGAGE MANAGER CARD -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 space-y-4">
+                        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13a9 9 0 01-9 9m-9-9a9 9 0 019-9m0 0v18m0-18L3 12m9-9l9 9" />
+                            </svg>
+                            🧳 Suitcase &amp; Bag Manager
+                        </h3>
+                        <p class="text-xs text-slate-500">Add custom luggage types below and track how many items are currently assigned to each bag:</p>
+                        
+                        <div class="space-y-2 max-h-60 overflow-y-auto pr-1">
+                            <template x-for="bag in bags" :key="bag.id">
+                                <div class="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-150 text-sm">
+                                    <span class="font-semibold text-slate-700" x-text="bag.name"></span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full" x-text="`${getItemsCountInBag(bag.id)} units`"></span>
+                                        <button x-show="bag.id !== 'unassigned'" @click="deleteBag(bag.id)" class="text-slate-300 hover:text-rose-500 p-1 rounded transition" title="Delete Bag">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        
+                        <form @submit.prevent="addBag()" class="flex gap-2 pt-2 border-t border-slate-100">
+                            <input type="text" x-model="newBagName" placeholder="e.g. Kieran's Blue Duffel" class="flex-1 text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-semibold shadow-sm transition shrink-0">
+                                + Add
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Travel Packing Strategy Tips -->
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 space-y-4">
+                        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                            KNK Travel Smart Tips
+                        </h3>
+                        <ul class="space-y-3 text-sm text-slate-600">
+                            <li class="flex items-start gap-2.5">
+                                <span class="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2 shrink-0"></span>
+                                <span><strong>Divide Baggage:</strong> Categorize and assign heavier jackets or secondary gear into checked baggage, leaving Nico's high-frequency items inside the carry-on.</span>
+                            </li>
+                            <li class="flex items-start gap-2.5">
+                                <span class="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2 shrink-0"></span>
+                                <span><strong>The Layering Rule:</strong> Standard UK weather means four seasons in one day. Pack light layers rather than heavy individual items.</span>
+                            </li>
+                            <li class="flex items-start gap-2.5">
+                                <span class="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2 shrink-0"></span>
+                                <span><strong>Baby Cutlery:</strong> Pre-pack your toddler's customized cutlery in a lightweight travel container or reusable silicone bag and tag it in his dedicated travel backpack.</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- Weather Status Card -->
+                    <div class="bg-blue-50 border border-blue-100 rounded-xl p-6 text-slate-700">
+                        <h3 class="text-sm font-extrabold text-blue-900 uppercase tracking-wider mb-2">UK Weather Note</h3>
+                        <p class="text-sm">Wind and horizontal drizzle render umbrellas secondary. Ensure your adult jackets and stroller rain covers are tested and water-resistant!</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: AI PACKING COMPANION (GEMINI INTEGRATION) -->
+        <div x-show="activeTab === 'ai-companion'" class="space-y-8 no-print">
+            
+            <!-- Information Callout banner -->
+            <div class="bg-gradient-to-r from-violet-600 to-indigo-700 text-white p-6 rounded-2xl shadow-md flex items-start gap-4">
+                <div class="p-3 bg-white/20 rounded-xl backdrop-blur-sm shrink-0">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+                </div>
+                <div>
+                    <h2 class="text-lg font-bold">Interactive Gemini AI Assistant Studio</h2>
+                    <p class="text-sm text-indigo-100 mt-1">Unlock intelligent parsing, live web-grounded itinerary weather recommendations, and UK-specific travel wisdom directly embedded into your list state.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                
+                <!-- Box 1: Natural Language AI Parsing -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 space-y-4 flex flex-col justify-between">
+                    <div class="space-y-2">
+                        <span class="text-xs uppercase bg-violet-100 text-violet-800 font-extrabold px-2 py-1 rounded">Smart Parser</span>
+                        <h3 class="text-xl font-bold text-slate-800">Natural Language "AI Smart Add"</h3>
+                        <p class="text-sm text-slate-500">Instead of typing items manually, describe whatever custom items you need to pack in freeform text. Gemini will structure, categorize, and append them instantly.</p>
+                        
+                        <div class="pt-3">
+                            <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Type your custom packing items</label>
+                            <textarea x-model="aiSmartAddQuery" rows="4" placeholder="Example: Put down 3 pacifiers, 2 warm sweaters for the kid, a GoPro camera with mounts, and some baby formula for flight day..." class="w-full text-sm p-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 flex items-center justify-between">
+                        <span class="text-xs text-slate-400" x-text="aiSmartAddStatus"></span>
+                        <button @click="runAISmartAdd()" :disabled="aiSmartAddLoading || !aiSmartAddQuery.trim()" class="bg-violet-600 hover:bg-violet-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-sm font-semibold px-5 py-2.5 rounded-lg flex items-center gap-2 transition duration-150">
+                            <template x-if="aiSmartAddLoading">
+                                <svg class="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            </template>
+                            Parse &amp; Add Items
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Box 2: Google Search Grounded Weather & Itinerary Advisor -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 space-y-4 flex flex-col justify-between">
+                    <div class="space-y-2">
+                        <span class="text-xs uppercase bg-indigo-100 text-indigo-800 font-extrabold px-2 py-1 rounded">Search-Grounded AI</span>
+                        <h3 class="text-xl font-bold text-slate-800">Live Weather &amp; Regional Strategy</h3>
+                        <p class="text-sm text-slate-500">Provide your UK destination and travel month. The model will perform a live Google Search on local weather predictions and recommend special checklist additions.</p>
+                        
+                        <div class="grid grid-cols-2 gap-3 pt-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">UK Region/City</label>
+                                <input x-model="aiTravelRegion" type="text" placeholder="e.g. London &amp; Edinburgh" class="w-full text-sm px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Travel Month</label>
+                                <input x-model="aiTravelMonth" type="text" placeholder="e.g. July 2026" class="w-full text-sm px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 flex items-center justify-between">
+                        <span class="text-xs text-slate-400" x-text="aiSearchAdvisorStatus"></span>
+                        <button @click="runSearchAdvisor()" :disabled="aiSearchAdvisorLoading || !aiTravelRegion.trim()" class="bg-violet-600 hover:bg-violet-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-sm font-semibold px-5 py-2.5 rounded-lg flex items-center gap-2 transition duration-150">
+                            <template x-if="aiSearchAdvisorLoading">
+                                <svg class="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            </template>
+                            Search Weather &amp; Recommend
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- AI Live Weather Output & Suggested Checklist additions -->
+            <template x-if="aiAdvisorOutput">
+                <div class="bg-violet-50/50 border border-violet-100 rounded-2xl p-6 space-y-6">
+                    <div class="flex items-center gap-2 text-violet-800">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <h4 class="text-lg font-bold">Search Recommendations for <span x-text="aiTravelRegion"></span> (<span x-text="aiTravelMonth"></span>)</h4>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Left column: Grounded summary explanation -->
+                        <div class="lg:col-span-1 space-y-3">
+                            <h5 class="text-xs uppercase font-extrabold text-slate-400 tracking-wider">Live Weather Intel</h5>
+                            <p class="text-sm text-slate-600 leading-relaxed bg-white p-4 rounded-xl border border-slate-100" x-text="aiAdvisorOutput.weatherSummary"></p>
+                            <!-- Citations / Sources -->
+                            <template x-if="aiAdvisorSources.length > 0">
+                                <div class="bg-white p-4 rounded-xl border border-slate-100 space-y-1">
+                                    <h6 class="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">Sources Found:</h6>
+                                    <div class="flex flex-col gap-1">
+                                        <template x-for="source in aiAdvisorSources">
+                                            <a :href="source.uri" target="_blank" class="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                                <span x-text="source.title"></span>
+                                            </a>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- Right columns: Smart Suggestive Items with quick additions -->
+                        <div class="lg:col-span-2 space-y-3">
+                            <div class="flex justify-between items-center">
+                                <h5 class="text-xs uppercase font-extrabold text-slate-400 tracking-wider">AI Suggested Travel Additions</h5>
+                                <button @click="importAllAISuggestions(aiAdvisorOutput.suggestions)" class="text-xs font-bold text-violet-700 hover:text-violet-800 bg-violet-100 hover:bg-violet-200 px-3 py-1 rounded transition duration-150">Import All Suggestions</button>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <template x-for="rec in aiAdvisorOutput.suggestions" :key="rec.name">
+                                    <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex flex-col justify-between">
+                                        <div>
+                                            <div class="flex items-center justify-between mb-1">
+                                                <span class="text-[10px] font-extrabold uppercase text-violet-600" x-text="getCategoryName(rec.category)"></span>
+                                                <template x-if="rec.quantity">
+                                                    <span class="bg-slate-100 text-slate-600 text-[10px] px-1.5 py-0.5 rounded font-bold" x-text="`Qty: ${rec.quantity}`"></span>
+                                                </template>
+                                            </div>
+                                            <h6 class="font-bold text-slate-800 text-sm" x-text="rec.name"></h6>
+                                            <p class="text-xs text-slate-500 mt-1" x-text="rec.notes"></p>
+                                        </div>
+                                        <div class="pt-3 border-t border-slate-50 mt-3 flex justify-end">
+                                            <button @click="importSingleAISuggestion(rec)" :disabled="isItemAlreadyInList(rec.name)" :class="isItemAlreadyInList(rec.name) ? 'bg-slate-100 text-slate-400' : 'bg-slate-900 hover:bg-slate-800 text-white'" class="text-[11px] font-bold px-2.5 py-1.5 rounded transition duration-150">
+                                                <span x-text="isItemAlreadyInList(rec.name) ? 'Added' : 'Add to List'"></span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- CUSTOM CONFIRMATION MODAL (Replaces confirm alert boxes) -->
+        <div x-show="showResetModal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                <!-- Overlay background -->
+                <div x-show="showResetModal" 
+                     x-transition:enter="ease-out duration-300"
+                     x-transition:enter-start="opacity-0"
+                     x-transition:enter-end="opacity-100"
+                     x-transition:leave="ease-in duration-200"
+                     x-transition:leave-start="opacity-100"
+                     x-transition:leave-end="opacity-0"
+                     class="fixed inset-0 bg-slate-500 bg-opacity-75 transition-opacity" 
+                     @click="showResetModal = false">
+                </div>
+
+                <!-- Center element spacer -->
+                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+                <!-- Modal Dialog -->
+                <div x-show="showResetModal"
+                     x-transition:enter="ease-out duration-300"
+                     x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                     x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                     x-transition:leave="ease-in duration-200"
+                     x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                     x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                     class="relative inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full p-6">
+                    
+                    <div class="sm:flex sm:items-start">
+                        <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-rose-100 sm:mx-0 sm:h-10 sm:w-10 text-rose-600">
+                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                            </svg>
+                        </div>
+                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                            <h3 class="text-lg leading-6 font-bold text-slate-900" id="modal-title">Reset Packing Checklist</h3>
+                            <div class="mt-2">
+                                <p class="text-sm text-slate-500">Are you sure you want to reset all packed items to zero? Your custom items and custom quantities will not be deleted, but your progress tracker will restart.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse gap-2">
+                        <button @click="resetListConfirmed()" type="button" class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-rose-600 text-base font-medium text-white hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-500 sm:ml-3 sm:w-auto sm:text-sm">
+                            Reset Progress
+                        </button>
+                        <button @click="showResetModal = false" type="button" class="mt-3 w-full inline-flex justify-center rounded-lg border border-slate-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:w-auto sm:text-sm">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CUSTOM RESTORE MODAL -->
+        <div x-show="showRestoreModal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                <!-- Overlay background -->
+                <div x-show="showRestoreModal" 
+                     x-transition:enter="ease-out duration-300"
+                     x-transition:enter-start="opacity-0"
+                     x-transition:enter-end="opacity-100"
+                     x-transition:leave="ease-in duration-200"
+                     x-transition:leave-start="opacity-100"
+                     x-transition:leave-end="opacity-0"
+                     class="fixed inset-0 bg-slate-500 bg-opacity-75 transition-opacity" 
+                     @click="showRestoreModal = false">
+                </div>
+
+                <!-- Center element spacer -->
+                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+                <!-- Modal Dialog -->
+                <div x-show="showRestoreModal"
+                     x-transition:enter="ease-out duration-300"
+                     x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                     x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                     x-transition:leave="ease-in duration-200"
+                     x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+                     x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+                     class="relative inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full p-6">
+                    
+                    <div class="sm:flex sm:items-start">
+                        <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 sm:mx-0 sm:h-10 sm:w-10 text-indigo-600">
+                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15H19M9 5h4V1"/>
+                            </svg>
+                        </div>
+                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                            <h3 class="text-lg leading-6 font-bold text-slate-900" id="modal-title">Restore Default Packing Items</h3>
+                            <div class="mt-2">
+                                <p class="text-sm text-slate-500">Are you sure you want to restore all the original items? This will reset your progress and replace your current packing state with the standard list for Kieran, Karen, and Nico.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse gap-2">
+                        <button @click="restoreListConfirmed()" type="button" class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm">
+                            Restore Defaults
+                        </button>
+                        <button @click="showRestoreModal = false" type="button" class="mt-3 w-full inline-flex justify-center rounded-lg border border-slate-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:w-auto sm:text-sm">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Define Javascript Controllers before Alpine loads to eliminate ReferenceErrors -->
+    <script>
+        function packingApp() {
+            return {
+                activeTab: 'checklist',
+                activeCategory: 'all',
+                activeBag: 'all',
+                showResetModal: false,
+                showRestoreModal: false,
+                newItem: { name: '', category: 'priority', bagId: 'unassigned', totalQty: 1 },
+                categories: [
+                    { 
+                        id: 'priority', 
+                        name: 'High Priority & Docs', 
+                        icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>' 
+                    },
+                    { 
+                        id: 'baby', 
+                        name: 'Toddler Gear (Nico)', 
+                        icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" /></svg>' 
+                    },
+                    { 
+                        id: 'clothing_nico', 
+                        name: "Nico's Clothing", 
+                        icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>' 
+                    },
+                    { 
+                        id: 'clothing_adults', 
+                        name: "Kieran & Karen's Clothing", 
+                        icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>' 
+                    },
+                    { 
+                        id: 'toiletries', 
+                        name: 'Toiletries & Health', 
+                        icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>' 
+                    },
+                    { 
+                        id: 'electronics', 
+                        name: 'Electronics', 
+                        icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>' 
+                    },
+                    { 
+                        id: 'carryon', 
+                        name: 'Carry-On & Flight', 
+                        icon: '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>' 
+                    }
+                ],
+                
+                bags: [],
+                newBagName: '',
+                items: [],
+
+                // AI states
+                aiSmartAddQuery: '',
+                aiSmartAddLoading: false,
+                aiSmartAddStatus: '',
+
+                aiTravelRegion: 'London & Edinburgh',
+                aiTravelMonth: 'July',
+                aiSearchAdvisorLoading: false,
+                aiSearchAdvisorStatus: '',
+                aiAdvisorOutput: null,
+                aiAdvisorSources: [],
+
+                initApp() {
+                    const savedBags = localStorage.getItem('uk_packing_planner_bags');
+                    if (savedBags) {
+                        try {
+                            this.bags = JSON.parse(savedBags);
+                        } catch (e) {
+                            this.loadDefaultBags();
+                        }
+                    } else {
+                        this.loadDefaultBags();
+                    }
+
+                    const savedItems = localStorage.getItem('uk_packing_list_items');
+                    if (savedItems) {
+                        try {
+                            const parsed = JSON.parse(savedItems);
+                            this.items = parsed;
+                            // Check if the restored list is completely empty
+                            if (this.items.length === 0) {
+                                this.loadDefaultItems();
+                            } else {
+                                this.migrateOldCategories();
+                                this.migrateOldQuantities();
+                                this.verifyBagsIntegrity();
+                            }
+                        } catch (e) {
+                            this.loadDefaultItems();
+                        }
+                    } else {
+                        this.loadDefaultItems();
+                    }
+                },
+
+                loadDefaultBags() {
+                    this.bags = [
+                        { id: 'unassigned', name: '🎒 Unassigned / Loose' },
+                        { id: 'kieran-suitcase', name: "🧳 Kieran's Suitcase" },
+                        { id: 'karen-suitcase', name: "🧳 Karen's Suitcase" },
+                        { id: 'nico-suitcase', name: "👶 Nico's Suitcase" },
+                        { id: 'carry-on', name: '✈️ Carry-On Backpack' }
+                    ];
+                    this.saveToStorage();
+                },
+
+                addBag() {
+                    if (!this.newBagName.trim()) return;
+                    const id = 'bag-' + Date.now();
+                    this.bags.push({
+                        id: id,
+                        name: '🧳 ' + this.newBagName.trim()
+                    });
+                    this.newBagName = '';
+                    this.saveToStorage();
+                },
+
+                deleteBag(bagId) {
+                    if (bagId === 'unassigned') return;
+                    this.items.forEach(item => {
+                        if (item.bagId === bagId) {
+                            item.bagId = 'unassigned';
+                        }
+                    });
+                    this.bags = this.bags.filter(b => b.id !== bagId);
+                    if (this.activeBag === bagId) {
+                        this.activeBag = 'all';
+                    }
+                    this.saveToStorage();
+                },
+
+                verifyBagsIntegrity() {
+                    this.items.forEach(item => {
+                        if (!item.bagId || !this.bags.some(b => b.id === item.bagId)) {
+                            item.bagId = 'unassigned';
+                        }
+                    });
+                },
+
+                updateItemBag(itemId, bagId) {
+                    const item = this.items.find(i => i.id === itemId);
+                    if (item) {
+                        item.bagId = bagId;
+                        this.saveToStorage();
+                    }
+                },
+
+                getItemsCountInBag(bagId) {
+                    return this.items.filter(i => i.bagId === bagId).reduce((sum, item) => sum + (item.totalQty || 1), 0);
+                },
+
+                migrateOldCategories() {
+                    let migrated = false;
+                    this.items.forEach(item => {
+                        if (item.category === 'clothing') {
+                            const lowerName = item.name.toLowerCase();
+                            if (lowerName.includes('toddler') || lowerName.includes('baby') || lowerName.includes('nico')) {
+                                item.category = 'clothing_nico';
+                                item.name = item.name.replace(/toddler/gi, "Nico's").replace(/baby's/gi, "Nico's");
+                            } else {
+                                item.category = 'clothing_adults';
+                                if (item.name.includes('Adult')) {
+                                    item.name = item.name.replace('Adult', "Kieran or Karen's");
+                                }
+                            }
+                            migrated = true;
+                        }
+                    });
+                    if (migrated) {
+                        this.saveToStorage();
+                    }
+                },
+
+                migrateOldQuantities() {
+                    this.items.forEach(item => {
+                        if (item.totalQty === undefined) {
+                            let parsedQty = 1;
+                            if (item.quantity) {
+                                const matches = String(item.quantity).match(/\d+/g);
+                                if (matches && matches.length > 0) {
+                                    parsedQty = parseInt(matches[matches.length - 1]);
+                                }
+                            }
+                            item.totalQty = parsedQty;
+                            item.packedQty = item.packed ? parsedQty : 0;
+                        }
+                        if (item.packed !== undefined) {
+                            delete item.packed;
+                        }
+                    });
+                    this.saveToStorage();
+                },
+
+                loadDefaultItems() {
+                    this.items = [
+                        // Priority Documents
+                        { id: 1, category: 'priority', bagId: 'carry-on', name: 'Passports', notes: 'Verify minimum 6 months validity (Kieran, Karen, Nico)', totalQty: 3, packedQty: 0 },
+                        { id: 2, category: 'priority', bagId: 'carry-on', name: 'Visas or ETA approvals', notes: 'Bring printed copies', totalQty: 3, packedQty: 0 },
+                        { id: 3, category: 'priority', bagId: 'carry-on', name: 'Flight tickets & boarding passes', notes: 'Digital copies saved offline', totalQty: 3, packedQty: 0 },
+                        { id: 4, category: 'priority', bagId: 'carry-on', name: 'Travel insurance documents', notes: 'And local cards', totalQty: 1, packedQty: 0 },
+                        { id: 5, category: 'priority', bagId: 'carry-on', name: 'Birth certificate for Nico', notes: 'Border control check', totalQty: 1, packedQty: 0 },
+                        { id: 6, category: 'priority', bagId: 'carry-on', name: 'Credit/Debit travel cards', notes: 'Load onto Google/Apple Pay', totalQty: 2, packedQty: 0 },
+                        
+                        // Toddler Gear & Specific items (Nico)
+                        { id: 10, category: 'baby', bagId: 'nico-suitcase', name: "Nico's Custom Cutlery", notes: 'Packed in dynamic travel container', totalQty: 1, packedQty: 0 },
+                        { id: 11, category: 'baby', bagId: 'carry-on', name: "Nico's Sipper cups / Straw bottles", notes: 'For travel days and outings', totalQty: 2, packedQty: 0 },
+                        { id: 12, category: 'baby', bagId: 'nico-suitcase', name: "Nico's Travel bibs (Silicone)", totalQty: 2, packedQty: 0 },
+                        { id: 13, category: 'baby', bagId: 'nico-suitcase', name: "Nico's Snack pots / Bento boxes", totalQty: 2, packedQty: 0 },
+                        { id: 14, category: 'baby', bagId: 'carry-on', name: 'Formula or toddler milk for Nico', notes: 'Enough for travel days only', totalQty: 1, packedQty: 0 },
+                        { id: 15, category: 'baby', bagId: 'carry-on', name: "Nico's Favorite bedtime comfort lovey / paci", totalQty: 2, packedQty: 0 },
+                        { id: 16, category: 'baby', bagId: 'nico-suitcase', name: "Nico's Sleep sacks", totalQty: 2, packedQty: 0 },
+                        { id: 17, category: 'baby', bagId: 'unassigned', name: 'Lightweight stroller with rain cover', notes: 'Check at gate for Nico', totalQty: 1, packedQty: 0 },
+                        { id: 18, category: 'baby', bagId: 'unassigned', name: 'Ergonomic baby carrier', totalQty: 1, packedQty: 0 },
+
+                        // Nico's Clothing (Nico is starting to outgrow bodysuits; mix of T-shirts and bodysuits)
+                        { id: 20, category: 'clothing_nico', bagId: 'nico-suitcase', name: "Nico's T-Shirts & Tops", notes: 'Mix of standard shirts and tops', totalQty: 7, packedQty: 0 },
+                        { id: 21, category: 'clothing_nico', bagId: 'nico-suitcase', name: "Nico's Bodysuits", notes: 'Remaining well-fitting ones for base layering', totalQty: 3, packedQty: 0 },
+                        { id: 22, category: 'clothing_nico', bagId: 'nico-suitcase', name: "Nico's Pants / Trousers (Reduced)", notes: 'Fewer pairs needed as laundry is available', totalQty: 5, packedQty: 0 },
+                        { id: 23, category: 'clothing_nico', bagId: 'nico-suitcase', name: "Nico's Warm Sweaters & Hoodies", totalQty: 4, packedQty: 0 },
+                        { id: 24, category: 'clothing_nico', bagId: 'nico-suitcase', name: "Nico's Pajamas / Sleepsuits", totalQty: 2, packedQty: 0 },
+                        { id: 25, category: 'clothing_nico', bagId: 'nico-suitcase', name: "Nico's Waterproof puddle suit / jacket", totalQty: 1, packedQty: 0 },
+                        { id: 26, category: 'clothing_nico', bagId: 'nico-suitcase', name: "Nico's Sun hat & Winter hat combo", totalQty: 2, packedQty: 0 },
+                        { id: 27, category: 'clothing_nico', bagId: 'nico-suitcase', name: "Nico's Socks", totalQty: 8, packedQty: 0 },
+                        { id: 28, category: 'clothing_nico', bagId: 'nico-suitcase', name: "Nico's Walking shoes", totalQty: 2, packedQty: 0 },
+                        
+                        // Kieran's Clothing
+                        { id: 29, category: 'clothing_adults', bagId: 'kieran-suitcase', name: "Kieran's T-shirts & tops", notes: 'For a 7-8 day loop', totalQty: 8, packedQty: 0 },
+                        { id: 30, category: 'clothing_adults', bagId: 'kieran-suitcase', name: "Kieran's Pants / Trousers", notes: '3-4 pairs', totalQty: 4, packedQty: 0 },
+                        { id: 31, category: 'clothing_adults', bagId: 'kieran-suitcase', name: "Kieran's Layering Sweaters", notes: '2-3 layers', totalQty: 3, packedQty: 0 },
+                        { id: 32, category: 'clothing_adults', bagId: 'kieran-suitcase', name: "Kieran's Smart Outfit", notes: '1 set for dining out', totalQty: 1, packedQty: 0 },
+                        { id: 33, category: 'clothing_adults', bagId: 'kieran-suitcase', name: "Kieran's Waterproof Hooded Jacket", notes: 'Essential wind/rain protection', totalQty: 1, packedQty: 0 },
+                        { id: 34, category: 'clothing_adults', bagId: 'kieran-suitcase', name: "Kieran's Pajamas", notes: '2 sets', totalQty: 2, packedQty: 0 },
+                        { id: 35, category: 'clothing_adults', bagId: 'kieran-suitcase', name: "Kieran's Underwear & Socks", notes: '8 pairs', totalQty: 8, packedQty: 0 },
+                        { id: 36, category: 'clothing_adults', bagId: 'kieran-suitcase', name: "Kieran's Comfortable Waterproof Shoes", notes: '2 pairs total', totalQty: 2, packedQty: 0 },
+
+                        // Karen's Clothing
+                        { id: 129, category: 'clothing_adults', bagId: 'karen-suitcase', name: "Karen's T-shirts & tops", notes: 'For a 7-8 day loop', totalQty: 8, packedQty: 0 },
+                        { id: 130, category: 'clothing_adults', bagId: 'karen-suitcase', name: "Karen's Pants / Trousers", notes: '3-4 pairs', totalQty: 4, packedQty: 0 },
+                        { id: 131, category: 'clothing_adults', bagId: 'karen-suitcase', name: "Karen's Layering Sweaters", notes: '2-3 layers', totalQty: 3, packedQty: 0 },
+                        { id: 132, category: 'clothing_adults', bagId: 'karen-suitcase', name: "Karen's Smart Outfit", notes: '1 set for dining out', totalQty: 1, packedQty: 0 },
+                        { id: 133, category: 'clothing_adults', bagId: 'karen-suitcase', name: "Karen's Waterproof Hooded Jacket", notes: 'Essential wind/rain protection', totalQty: 1, packedQty: 0 },
+                        { id: 134, category: 'clothing_adults', bagId: 'karen-suitcase', name: "Karen's Pajamas", notes: '2 sets', totalQty: 2, packedQty: 0 },
+                        { id: 135, category: 'clothing_adults', bagId: 'karen-suitcase', name: "Karen's Underwear & Socks", notes: '8 pairs', totalQty: 8, packedQty: 0 },
+                        { id: 136, category: 'clothing_adults', bagId: 'karen-suitcase', name: "Karen's Comfortable Waterproof Shoes", notes: '2 pairs total', totalQty: 2, packedQty: 0 },
+
+                        // Toiletries
+                        { id: 40, category: 'toiletries', bagId: 'nico-suitcase', name: "Nico's personal body wash & shampoo", totalQty: 1, packedQty: 0 },
+                        { id: 41, category: 'toiletries', bagId: 'nico-suitcase', name: 'Diapers / Nappies for Nico', notes: 'For first 48 hours only', totalQty: 15, packedQty: 0 },
+                        { id: 42, category: 'toiletries', bagId: 'carry-on', name: 'Travel diaper baby wipes', totalQty: 2, packedQty: 0 },
+                        { id: 43, category: 'toiletries', bagId: 'nico-suitcase', name: "Nico's nappy barrier cream", totalQty: 1, packedQty: 0 },
+                        { id: 44, category: 'toiletries', bagId: 'kieran-suitcase', name: 'Adult Basic Toiletries', notes: 'Brushes, paste, deodorant (Kieran & Karen)', totalQty: 2, packedQty: 0 },
+                        { id: 45, category: 'toiletries', bagId: 'karen-suitcase', name: 'Travel shampoo/conditioner', notes: 'Buy full size in UK', totalQty: 2, packedQty: 0 },
+                        { id: 46, category: 'toiletries', bagId: 'carry-on', name: 'Prescription medications', notes: 'Pack in carry-on!', totalQty: 1, packedQty: 0 },
+                        { id: 47, category: 'toiletries', bagId: 'carry-on', name: 'Family First Aid kit', notes: 'Calpol, thermometer, plaster', totalQty: 1, packedQty: 0 },
+
+                        // Electronics
+                        { id: 50, category: 'electronics', bagId: 'carry-on', name: 'UK Plug Adapters (Type G)', totalQty: 3, packedQty: 0 },
+                        { id: 51, category: 'electronics', bagId: 'carry-on', name: 'Charging USB cables & phones', totalQty: 3, packedQty: 0 },
+                        { id: 52, category: 'electronics', bagId: 'carry-on', name: 'Multi-port USB wall charger', totalQty: 1, packedQty: 0 },
+                        { id: 53, category: 'electronics', bagId: 'carry-on', name: 'High-capacity power bank', totalQty: 1, packedQty: 0 },
+                        { id: 54, category: 'electronics', bagId: 'carry-on', name: 'Tablet with offline videos for Nico', totalQty: 1, packedQty: 0 },
+                        { id: 55, category: 'electronics', bagId: 'carry-on', name: 'Laptop', totalQty: 1, packedQty: 0 },
+                        { id: 56, category: 'electronics', bagId: 'carry-on', name: "Nico's airplane activity games", notes: 'Stickers, water-draw', totalQty: 3, packedQty: 0 },
+
+                        // Carry-on
+                        { id: 60, category: 'carryon', bagId: 'carry-on', name: "Change of Nico's clothes in Ziploc", totalQty: 2, packedQty: 0 },
+                        { id: 61, category: 'carryon', bagId: 'carry-on', name: 'Spare T-shirts for Kieran & Karen', totalQty: 2, packedQty: 0 },
+                        { id: 62, category: 'carryon', bagId: 'carry-on', name: 'Double snacks (Puffs, bars) for Nico', totalQty: 4, packedQty: 0 },
+                        { id: 63, category: 'carryon', bagId: 'carry-on', name: 'Disposable bibs', totalQty: 5, packedQty: 0 },
+                        { id: 64, category: 'carryon', bagId: 'carry-on', name: 'Diaper change travel set', totalQty: 1, packedQty: 0 },
+                        { id: 65, category: 'carryon', bagId: 'carry-on', name: 'Empty travel water bottle', notes: 'Fill up after gate check', totalQty: 3, packedQty: 0 },
+                        { id: 66, category: 'carryon', bagId: 'carry-on', name: 'Wipes and sanitizer spray', totalQty: 2, packedQty: 0 }
+                    ];
+                },
+
+                saveToStorage() {
+                    localStorage.setItem('uk_packing_list_items', JSON.stringify(this.items));
+                    localStorage.setItem('uk_packing_planner_bags', JSON.stringify(this.bags));
+                },
+
+                toggleItemFull(id) {
+                    const item = this.items.find(i => i.id === id);
+                    if (item) {
+                        if (item.packedQty === item.totalQty) {
+                            item.packedQty = 0;
+                        } else {
+                            item.packedQty = item.totalQty;
+                        }
+                        this.saveToStorage();
+                    }
+                },
+
+                adjustPacked(id, amount) {
+                    const item = this.items.find(i => i.id === id);
+                    if (item) {
+                        const nextVal = item.packedQty + amount;
+                        if (nextVal >= 0 && nextVal <= item.totalQty) {
+                            item.packedQty = nextVal;
+                        }
+                        this.saveToStorage();
+                    }
+                },
+
+                updateTotalQty(id, value) {
+                    const item = this.items.find(i => i.id === id);
+                    if (item) {
+                        const nextLimit = Math.max(1, parseInt(value) || 1);
+                        item.totalQty = nextLimit;
+                        item.packedQty = Math.min(item.packedQty, nextLimit);
+                        this.saveToStorage();
+                    }
+                },
+
+                addItem() {
+                    if (!this.newItem.name.trim()) return;
+                    const cleanQty = Math.max(1, parseInt(this.newItem.totalQty) || 1);
+                    this.items.push({
+                        id: Date.now(),
+                        category: this.newItem.category,
+                        bagId: this.newItem.bagId,
+                        name: this.newItem.name.trim(),
+                        notes: 'Custom Travel Item',
+                        totalQty: cleanQty,
+                        packedQty: 0
+                    });
+                    this.newItem.name = '';
+                    this.newItem.totalQty = 1;
+                    this.saveToStorage();
+                },
+
+                deleteItem(id) {
+                    this.items = this.items.filter(i => i.id !== id);
+                    this.saveToStorage();
+                },
+
+                openResetModal() {
+                    this.showResetModal = true;
+                },
+
+                resetListConfirmed() {
+                    this.items.forEach(i => i.packedQty = 0);
+                    this.saveToStorage();
+                    this.showResetModal = false;
+                },
+
+                openRestoreModal() {
+                    this.showRestoreModal = true;
+                },
+
+                restoreListConfirmed() {
+                    this.loadDefaultItems();
+                    this.saveToStorage();
+                    this.showRestoreModal = false;
+                },
+
+                filteredItems(categoryId) {
+                    return this.items.filter(i => {
+                        const matchesCategory = i.category === categoryId;
+                        const matchesBag = this.activeBag === 'all' || (i.bagId || 'unassigned') === this.activeBag;
+                        return matchesCategory && matchesBag;
+                    });
+                },
+
+                getTotalCount() {
+                    return this.items.reduce((sum, item) => sum + (item.totalQty || 1), 0);
+                },
+                getPackedCount() {
+                    return this.items.reduce((sum, item) => sum + (item.packedQty || 0), 0);
+                },
+                getProgressPercent() {
+                    const total = this.getTotalCount();
+                    if (total === 0) return 0;
+                    return (this.getPackedCount() / total) * 100;
+                },
+                getTotalCountInCategory(catId) {
+                    return this.items.filter(i => i.category === catId).reduce((sum, item) => sum + (item.totalQty || 1), 0);
+                },
+                getPackedCountInCategory(catId) {
+                    return this.items.filter(i => i.category === catId).reduce((sum, item) => sum + (item.packedQty || 0), 0);
+                },
+
+                getCategoryName(catId) {
+                    const match = this.categories.find(c => c.id === catId);
+                    return match ? match.name : 'Other';
+                },
+
+                isItemAlreadyInList(name) {
+                    return this.items.some(i => i.name.toLowerCase().trim() === name.toLowerCase().trim());
+                },
+
+                printList() {
+                    window.print();
+                },
+
+                async fetchWithRetry(url, options, retries = 3, delay = 1000) {
+                    try {
+                        const response = await fetch(url, options);
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response;
+                    } catch (error) {
+                        if (retries > 0) {
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            return this.fetchWithRetry(url, options, retries - 1, delay * 2);
+                        } else {
+                            throw error;
+                        }
+                    }
+                },
+
+                async runAISmartAdd() {
+                    this.aiSmartAddLoading = true;
+                    this.aiSmartAddStatus = 'Connecting to Gemini model...';
+
+                    const prompt = `The user wants to pack the following items: "${this.aiSmartAddQuery}".
+                    Parse these items. Return a valid JSON array of objects representing items, with keys "name", "category", "quantity", and "notes". 
+                    Each item's "category" MUST be exactly one of: "priority", "baby", "clothing_nico", "clothing_adults", "toiletries", "electronics", "carryon".`;
+
+                    const systemInstruction = `You are a helpful travel packing AI companion. Parse user packing wishlists into JSON object structures matching this categories schema.
+                    The "quantity" field must be a simple integer represented as a string or number, representing the amount they want to bring.
+                    Output ONLY raw valid JSON conforming precisely to the requested schema structure. Do not output markdown codeblock fences, only JSON.`;
+
+                    const apiKey = ""; 
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+                    const payload = {
+                        contents: [{ parts: [{ text: prompt }] }],
+                        systemInstruction: {
+                            parts: [{ text: systemInstruction }]
+                        },
+                        generationConfig: {
+                            responseMimeType: "application/json",
+                            responseSchema: {
+                                type: "ARRAY",
+                                items: {
+                                    type: "OBJECT",
+                                    properties: {
+                                        name: { type: "STRING" },
+                                        category: { type: "STRING" },
+                                        quantity: { type: "STRING" },
+                                        notes: { type: "STRING" }
+                                    },
+                                    required: ["name", "category"]
+                                }
+                            }
+                        }
+                    };
+
+                    try {
+                        const response = await this.fetchWithRetry(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        const result = await response.json();
+                        const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                        if (jsonText) {
+                            const newParsedItems = JSON.parse(jsonText);
+                            let addedCount = 0;
+                            newParsedItems.forEach(item => {
+                                const validCategories = ['priority', 'baby', 'clothing_nico', 'clothing_adults', 'toiletries', 'electronics', 'carryon'];
+                                const finalCategory = validCategories.includes(item.category) ? item.category : 'clothing_adults';
+                                
+                                let parsedLimit = 1;
+                                if (item.quantity) {
+                                    const match = String(item.quantity).match(/\d+/);
+                                    if (match) parsedLimit = parseInt(match[0]);
+                                }
+
+                                this.items.push({
+                                    id: Date.now() + Math.random(),
+                                    category: finalCategory,
+                                    bagId: 'unassigned',
+                                    name: item.name,
+                                    notes: item.notes || 'Added via Smart Parser',
+                                    totalQty: parsedLimit,
+                                    packedQty: 0
+                                });
+                                addedCount++;
+                            });
+
+                            this.saveToStorage();
+                            this.aiSmartAddStatus = `Successfully identified and added ${addedCount} items to your packing list!`;
+                            this.aiSmartAddQuery = '';
+                        } else {
+                            this.aiSmartAddStatus = 'Could not parse response structure. Please try again.';
+                        }
+                    } catch (error) {
+                        console.error('Gemini Smart Add error:', error);
+                        this.aiSmartAddStatus = 'Failed to connect. Please try again later.';
+                    } finally {
+                        this.aiSmartAddLoading = false;
+                    }
+                },
+
+                async runSearchAdvisor() {
+                    this.aiSearchAdvisorLoading = true;
+                    this.aiSearchAdvisorStatus = 'Searching the web for weather forecasts & advisory notes...';
+                    this.aiAdvisorOutput = null;
+                    this.aiAdvisorSources = [];
+
+                    const query = `We are travelling to the UK, specifically staying around ${this.aiTravelRegion} in the month of ${this.aiTravelMonth}. What is the weather like? Recommend specific, essential checklist items for Kieran (adult), Karen (adult), and Nico (an 18-month-old toddler).`;
+                    
+                    const systemPrompt = `Research the weather conditions for the region and month specified using Google Search.
+                    Then, draft a brief, friendly weather advice statement for the family.
+                    Additionally, provide 4 to 6 highly relevant, specific item suggestions that this family should add to their packing lists. 
+                    Structure the output precisely as JSON matching the requested schema. Ensure the categories mapped are only: "priority", "baby", "clothing_nico", "clothing_adults", "toiletries", "electronics", "carryon".`;
+
+                    const apiKey = "";
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+                    const payload = {
+                        contents: [{ parts: [{ text: query }] }],
+                        tools: [{ "google_search": {} }],
+                        systemInstruction: {
+                            parts: [{ text: systemPrompt }]
+                        },
+                        generationConfig: {
+                            responseMimeType: "application/json",
+                            responseSchema: {
+                                type: "OBJECT",
+                                properties: {
+                                    weatherSummary: { type: "STRING", description: "A brief grounded description of predicted weather and general layering/packing strategy." },
+                                    suggestions: {
+                                        type: "ARRAY",
+                                        items: {
+                                            type: "OBJECT",
+                                            properties: {
+                                                name: { type: "STRING" },
+                                                category: { type: "STRING" },
+                                                quantity: { type: "STRING" },
+                                                notes: { type: "STRING", description: "Why this item is relevant for this specific weather/region." }
+                                            },
+                                            required: ["name", "category", "notes"]
+                                        }
+                                    }
+                                },
+                                required: ["weatherSummary", "suggestions"]
+                            }
+                        }
+                    };
+
+                    try {
+                        const response = await this.fetchWithRetry(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        const result = await response.json();
+                        const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                        const groundingMetadata = result.candidates?.[0]?.groundingMetadata;
+                        if (groundingMetadata && groundingMetadata.groundingAttributions) {
+                            this.aiAdvisorSources = groundingMetadata.groundingAttributions
+                                .map(attribution => ({
+                                    uri: attribution.web?.uri,
+                                    title: attribution.web?.title,
+                                }))
+                                .filter(source => source.uri && source.title)
+                                .slice(0, 3); 
+                        }
+
+                        if (jsonText) {
+                            this.aiAdvisorOutput = JSON.parse(jsonText);
+                            this.aiSearchAdvisorStatus = 'Successfully generated regional packing tips!';
+                        } else {
+                            this.aiSearchAdvisorStatus = 'Failed to analyze search data. Please try again.';
+                        }
+                    } catch (error) {
+                        console.error('Gemini Advisor Error:', error);
+                        this.aiSearchAdvisorStatus = 'Connection failure. Please retry.';
+                    } finally {
+                        this.aiSearchAdvisorLoading = false;
+                    }
+                },
+
+                importSingleAISuggestion(rec) {
+                    if (this.isItemAlreadyInList(rec.name)) return;
+                    let parsedLimit = 1;
+                    if (rec.quantity) {
+                        const match = String(rec.quantity).match(/\d+/);
+                        if (match) parsedLimit = parseInt(match[0]);
+                    }
+
+                    this.items.push({
+                        id: Date.now() + Math.random(),
+                        category: rec.category,
+                        bagId: 'unassigned',
+                        name: rec.name,
+                        notes: rec.notes || 'Suggested by AI',
+                        totalQty: parsedLimit,
+                        packedQty: 0
+                    });
+                    this.saveToStorage();
+                },
+
+                importAllAISuggestions(suggestions) {
+                    suggestions.forEach(rec => {
+                        this.importSingleAISuggestion(rec);
+                    });
+                }
+            };
+        }
+    </script>
+
+    <!-- Load Alpine.js at the bottom to guarantee that controllers are globally defined first -->
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</body>
+</html>
