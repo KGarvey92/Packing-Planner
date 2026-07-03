@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KNK Packing Planner</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        [x-cloak] { display: none !important; }
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; color: black !important; }
+            .print-card { box-shadow: none !important; border: 1px solid #e2e8f0 !important; page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+    <div x-data="packingApp()" x-init="initApp()" x-cloak class="max-w-6xl mx-auto p-4 md:p-8 space-y-8">
+        
+        <!-- Connection Status Notification Toast -->
+        <div class="no-print fixed top-4 right-4 z-50 space-y-2">
+            <template x-if="syncStatus === 'syncing'">
+                <div class="bg-blue-600 text-white px-4 py-2.5 rounded-xl shadow-lg text-xs font-bold flex items-center gap-2 transition-all">
+                    <svg class="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    Syncing Changes to Cloud...
+                </div>
+            </template>
+            <template x-if="syncStatus === 'synced'">
+                <div class="bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-lg text-xs font-bold flex items-center gap-1.5 transition-all">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                    All Changes Saved to Cloud
+                </div>
+            </template>
+            <template x-if="syncStatus === 'local'">
+                <div class="bg-amber-600 text-white px-4 py-2.5 rounded-xl shadow-lg text-xs font-bold flex items-center gap-1.5 transition-all">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+                    Saved to Local Device Storage
+                </div>
+            </template>
+            <template x-if="syncStatus === 'error'">
+                <div class="bg-rose-600 text-white px-4 py-2.5 rounded-xl shadow-lg text-xs font-bold flex items-center gap-1.5 transition-all">
+                    ⚠️ Cloud Sync Disconnected
+                </div>
+            </template>
+        </div>
+
+        <!-- Header & Progress Dashboard -->
+        <header class="bg-gradient-to-r from-blue-800 to-indigo-900 text-white rounded-2xl p-6 md:p-8 shadow-xl relative overflow-hidden no-print">
+            <div class="absolute right-0 bottom-0 opacity-10 pointer-events-none transform translate-y-6 translate-x-6">
+                <svg class="w-64 h-64 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M10.18 9c-.39 0-.71-.32-.71-.71V3.71c0-.39.32-.71.71-.71s.71.32.71.71v4.58c0 .39-.32.71-.71.71zM14 9c-.39 0-.71-.32-.71-.71V3.71c0-.39.32-.71.71-.71s.71.32.71.71v4.58c0 .39-.32.71-.71.71zm-8 4c0-3.31 2.69-6 6-6s6 2.69 6 6c0 2.22-1.21 4.15-3 5.19l-1.5 4.5c-.1.3-.38.5-.71.5h-1.58c-.33 0-.61-.2-.71-.5L11 18.19c-1.79-1.04-3-2.97-3-5.19z"/>
+                </svg>
+            </div>
+            
+            <div class="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div>
+                    <div class="flex flex-wrap items-center gap-2 mb-2">
+                        <span class="bg-orange-500 text-white text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">1 Month UK Trip</span>
+                        <span class="bg-blue-700/50 text-white text-xs px-2.5 py-1 rounded-full border border-blue-500/30">Kieran, Karen &amp; Nico (18M)</span>
+                        <span x-show="syncStatus !== 'local'" class="bg-emerald-600 text-white text-xs px-2.5 py-1 rounded-full">Real-Time Cloud Sync</span>
+                        <span x-show="syncStatus === 'local'" class="bg-amber-500 text-white text-xs px-2.5 py-1 rounded-full">Offline / Local Mode</span>
+                    </div>
+                    <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight">KNK Packing Planner</h1>
+                    <p class="text-blue-200 mt-2 text-sm md:text-base max-w-xl">Track, edit, and coordinate your family travel essentials across custom suitcases and bags with real-time cloud coordination.</p>
+                </div>
+                
+                <!-- Circular/Value Progress Counter -->
+                <div class="bg-white/10 backdrop-blur-md border border-white/10 rounded-xl p-4 flex items-center gap-4 w-full md:w-auto">
+                    <div class="relative flex items-center justify-center w-16 h-16 shrink-0">
+                        <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                            <path class="text-white/20" stroke-width="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                            <path class="text-orange-400 transition-all duration-500 ease-out" :stroke-dasharray="`${getProgressPercent()}, 100`" stroke-width="3.5" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                        </svg>
+                        <div class="absolute text-center">
+                            <span class="text-base font-bold" x-text="`${Math.round(getProgressPercent())}%`">0%</span>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="text-xs uppercase tracking-wider text-blue-200 font-semibold">Overall Progress</div>
+                        <div class="text-xl font-extrabold" x-text="`${getPackedCount()} / ${getTotalCount()} Items`">0 / 0 Items</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <div class="flex border-b border-slate-200 no-print">
+            <button @click="activeTab = 'checklist'" :class="activeTab === 'checklist' ? 'border-blue-600 text-blue-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'" class="py-4 px-6 border-b-2 font-medium text-sm transition duration-150 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                My Checklist
+            </button>
+            <button @click="activeTab = 'ai-companion'" :class="activeTab === 'ai-companion' ? 'border-violet-600 text-violet-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'" class="py-4 px-6 border-b-2 font-medium text-sm transition duration-150 flex items-center gap-2 relative">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                AI Packing Hub
+            </button>
+        </div>
+
+        <!-- TAB 1: CHECKLIST -->
+        <div x-show="activeTab === 'checklist'" class="space-y-6">
+            <section class="flex flex-col gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-100 no-print">
+                <!-- Categories Filtering -->
+                <div class="flex flex-wrap gap-1.5 items-center">
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mr-2">Categories:</span>
+                    <button @click="activeCategory = 'all'" :class="activeCategory === 'all' ? 'bg-blue-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'" class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition duration-150">All Categories</button>
+                    <template x-for="cat in categories">
+                        <button @click="activeCategory = cat.id" :class="activeCategory === cat.id ? 'bg-blue-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'" class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition duration-150">
+                            <span x-text="cat.name"></span>
+                        </button>
+                    </template>
+                </div>
+
+                <!-- Suitcases / Bags Filtering -->
+                <div class="flex flex-wrap gap-1.5 items-center border-t border-slate-100 pt-3">
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mr-2">Luggage Filter:</span>
+                    <button @click="activeBag = 'all'" :class="activeBag === 'all' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'" class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition duration-150">All Luggage</button>
+                    <template x-for="bag in bags" :key="bag.id">
+                        <button @click="activeBag = bag.id" :class="activeBag === bag.id ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'" class="px-3.5 py-1.5 rounded-lg text-xs font-medium transition duration-150 flex items-center gap-1.5">
+                            <span x-text="bag.name"></span>
+                            <span :class="activeBag === bag.id ? 'bg-indigo-800 text-white' : 'bg-slate-200 text-slate-700'" class="text-[10px] font-bold px-1.5 py-0.5 rounded-full" x-text="getItemsCountInBag(bag.id)"></span>
+                        </button>
+                    </template>
+                </div>
+                
+                <div class="flex flex-wrap gap-2 justify-between items-center border-t border-slate-100 pt-3">
+                    <button @click="openRestoreModal()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg text-sm font-semibold border border-indigo-200 transition">Restore Defaults</button>
+                    <div class="flex gap-2">
+                        <button @click="printList()" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">Print Checklist</button>
+                        <button @click="openResetModal()" class="bg-rose-50 hover:bg-rose-100 text-rose-600 px-4 py-2 rounded-lg text-sm font-semibold border border-rose-200 transition">Reset Checked</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Dynamic Adding Item Interface -->
+            <section class="bg-white p-5 rounded-xl shadow-sm border border-slate-100 no-print">
+                <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3">Add Custom Item</h2>
+                <form @submit.prevent="addItem()" class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div>
+                        <input type="text" x-model="newItem.name" placeholder="Item Name" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" required>
+                    </div>
+                    <div>
+                        <select x-model="newItem.category" class="w-full px-3 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                            <template x-for="cat in categories">
+                                <option :value="cat.id" x-text="cat.name"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div class="flex gap-2">
+                        <select x-model="newItem.bagId" class="w-2/3 px-3 py-2.5 rounded-lg border border-slate-200 text-sm">
+                            <template x-for="bag in bags" :key="bag.id">
+                                <option :value="bag.id" x-text="bag.name"></option>
+                            </template>
+                        </select>
+                        <input type="number" min="1" x-model="newItem.totalQty" class="w-1/3 px-2 py-2.5 rounded-lg border border-slate-200 text-center text-sm">
+                    </div>
+                    <button type="submit" class="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2.5 rounded-lg text-sm transition shadow-sm">Add to List</button>
+                </form>
+            </section>
+
+            <!-- Main Checklist Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-2 space-y-6">
+                    <template x-for="cat in categories" :key="cat.id">
+                        <div x-show="(activeCategory === 'all' || activeCategory === cat.id) && filteredItems(cat.id).length > 0" class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden print-card">
+                            <div class="bg-slate-50 px-5 py-4 border-b border-slate-100 flex justify-between items-center">
+                                <div class="flex items-center gap-3">
+                                    <div class="p-2 rounded-lg bg-blue-50 text-blue-800" x-html="cat.icon"></div>
+                                    <h3 class="text-lg font-bold text-slate-800" x-text="cat.name"></h3>
+                                </div>
+                                <span class="bg-blue-100/60 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-full" x-text="`${getPackedCountInCategory(cat.id)} / ${getTotalCountInCategory(cat.id)}`"></span>
+                            </div>
+
+                            <div class="divide-y divide-slate-100 max-h-[550px] overflow-y-auto">
+                                <template x-for="item in filteredItems(cat.id)" :key="item.id">
+                                    <div :class="item.packedQty === item.totalQty ? 'bg-emerald-50/20' : (item.packedQty > 0 ? 'bg-amber-50/10' : 'hover:bg-slate-50/50')" class="flex flex-col p-4 transition-all">
+                                        <div class="flex items-center justify-between gap-4">
+                                            <div class="flex items-center gap-4 flex-1">
+                                                <button @click="toggleItemFull(item.id)" class="w-6 h-6 rounded-md border flex items-center justify-center transition-all shrink-0">
+                                                    <div :class="item.packedQty === item.totalQty ? 'bg-emerald-500 border-emerald-500 text-white' : (item.packedQty > 0 ? 'bg-amber-500 border-amber-500 text-white' : 'border-slate-300 bg-white')" class="w-full h-full rounded-md flex items-center justify-center">
+                                                        <template x-if="item.packedQty === item.totalQty">
+                                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                                                        </template>
+                                                        <template x-if="item.packedQty > 0 && item.packedQty < item.totalQty">
+                                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M20 12H4"/></svg>
+                                                        </template>
+                                                    </div>
+                                                </button>
+                                                <div @click="toggleItemFull(item.id)" class="cursor-pointer flex-1">
+                                                    <p :class="item.packedQty === item.totalQty ? 'line-through text-slate-400 font-normal' : 'text-slate-700 font-medium'" class="text-sm md:text-base" x-text="item.name"></p>
+                                                    <p x-show="item.notes" class="text-xs text-slate-400 mt-0.5" x-text="item.notes"></p>
+                                                </div>
+                                            </div>
+
+                                            <div class="flex items-center gap-3 no-print">
+                                                <select :value="item.bagId || 'unassigned'" @change="updateItemBag(item.id, $event.target.value)" class="bg-slate-100 text-slate-600 border border-slate-200 text-xs rounded px-2.5 py-1.5 focus:outline-none max-w-[140px] truncate">
+                                                    <template x-for="bag in bags" :key="bag.id">
+                                                        <option :value="bag.id" x-text="bag.name"></option>
+                                                    </template>
+                                                </select>
+
+                                                <div class="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200">
+                                                    <button @click.stop="adjustPacked(item.id, -1)" class="w-6 h-6 flex items-center justify-center bg-white rounded shadow-sm text-slate-600 font-extrabold">-</button>
+                                                    <div class="px-2 text-xs font-extrabold text-slate-700 flex items-center gap-1">
+                                                        <span x-text="item.packedQty" class="text-sm"></span>
+                                                        <span class="text-slate-400">/</span>
+                                                        <input type="number" min="1" :value="item.totalQty" @change="updateTotalQty(item.id, $event.target.value)" class="w-8 bg-transparent text-center font-extrabold text-xs border border-transparent rounded p-0.5 focus:bg-white">
+                                                    </div>
+                                                    <button @click.stop="adjustPacked(item.id, 1)" class="w-6 h-6 flex items-center justify-center bg-white rounded shadow-sm text-slate-600 font-extrabold">+</button>
+                                                </div>
+
+                                                <button @click="deleteItem(item.id)" class="text-slate-300 hover:text-rose-500 p-1.5 rounded-lg transition">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Bag Manager & Tips Dashboard -->
+                <div class="space-y-6 no-print">
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-100 p-6 space-y-4">
+                        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">🧳 Suitcase &amp; Bag Manager</h3>
+                        <div class="space-y-2 max-h-60 overflow-y-auto">
+                            <template x-for="bag in bags" :key="bag.id">
+                                <div class="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-150 text-sm">
+                                    <span class="font-semibold text-slate-700" x-text="bag.name"></span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full" x-text="`${getItemsCountInBag(bag.id)} units`"></span>
+                                        <button x-show="bag.id !== 'unassigned'" @click="deleteBag(bag.id)" class="text-slate-300 hover:text-rose-500 p-1 rounded transition">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        <form @submit.prevent="addBag()" class="flex gap-2 pt-2 border-t border-slate-100">
+                            <input type="text" x-model="newBagName" placeholder="e.g. Nico's Blue Duffel" class="flex-1 text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none" required>
+                            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-xs font-semibold shrink-0">Add</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: AI COMPANION -->
+        <div x-show="activeTab === 'ai-companion'" class="space-y-8 no-print">
+            <div class="bg-gradient-to-r from-violet-600 to-indigo-700 text-white p-6 rounded-2xl shadow-md flex items-start gap-4">
+                <div>
+                    <h2 class="text-lg font-bold">Interactive Gemini AI Assistant Studio</h2>
+                    <p class="text-sm text-indigo-100 mt-1">Unlock intelligent parsing and local web-grounded recommendations safely synchronized across all active group tabs.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                    <div class="space-y-2">
+                        <span class="text-xs uppercase bg-violet-100 text-violet-800 font-extrabold px-2 py-1 rounded">Smart Parser</span>
+                        <h3 class="text-xl font-bold text-slate-800">Natural Language "AI Smart Add"</h3>
+                        <textarea x-model="aiSmartAddQuery" rows="4" placeholder="Example: Put down 3 pacifiers, 2 warm sweaters for the kid..." class="w-full text-sm p-3 border border-slate-200 rounded-lg focus:outline-none mt-2"></textarea>
+                    </div>
+                    <div class="pt-4 flex items-center justify-between">
+                        <span class="text-xs text-slate-400" x-text="aiSmartAddStatus"></span>
+                        <button @click="runAISmartAdd()" :disabled="aiSmartAddLoading || !aiSmartAddQuery.trim()" class="bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition">Parse Items</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modals for Reset/Restore UI confirmations -->
+        <div x-show="showResetModal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                <div class="fixed inset-0 bg-slate-500 bg-opacity-75 transition-opacity" @click="showResetModal = false"></div>
+                <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+                <div class="relative inline-block align-bottom bg-white rounded-2xl p-6 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                    <h3 class="text-lg font-bold text-slate-900">Reset Packing Checklist</h3>
+                    <p class="text-sm text-slate-500 mt-2">Are you sure you want to reset all packed counts to zero? Custom entries will remain safe.</p>
+                    <div class="mt-5 sm:flex sm:flex-row-reverse gap-2">
+                        <button @click="resetListConfirmed()" class="px-4 py-2 bg-rose-600 text-white rounded-lg text-sm font-semibold hover:bg-rose-700">Reset Progress</button>
+                        <button @click="showResetModal = false" class="px-4 py-2 bg-white text-slate-700 border border-slate-300 rounded-lg text-sm font-semibold">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div x-show="showRestoreModal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                <div class="fixed inset-0 bg-slate-500 bg-opacity-75 transition-opacity" @click="showRestoreModal = false"></div>
+                <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+                <div class="relative inline-block align-bottom bg-white rounded-2xl p-6 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                    <h3 class="text-lg font-bold text-slate-900">Restore Default Packing Items</h3>
+                    <p class="text-sm text-slate-500 mt-2">This will reset your progress and restore the complete master allotment configuration for Kieran, Karen, and Nico.</p>
+                    <div class="mt-5 sm:flex sm:flex-row-reverse gap-2">
+                        <button @click="restoreListConfirmed()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700">Restore Defaults</button>
+                        <button @click="showRestoreModal = false" class="px-4 py-2 bg-white text-slate-700 border border-slate-300 rounded-lg text-sm font-semibold">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Firebase System Scripts Loader Modules -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+        // =========================================================================
+        // ⚠️ STEP 3 DIRECTIONS: PASTE YOUR REPLACEMENT FIREBASE CONFIG SCRIPT HERE
+        // =========================================================================
+        const firebaseConfig = {
+            apiKey: "PASTE_YOUR_API_KEY_HERE",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        window.setupFirebaseSync = function(appComponent) {
+            // Guardrail check: Fall back to local storage if API key placeholder is still default
+            if (!firebaseConfig.apiKey || firebaseConfig.apiKey.includes("PASTE_YOUR_API_KEY") || firebaseConfig.apiKey === "") {
+                console.warn("Firebase credentials not configured. Using local storage sync.");
+                appComponent.syncStatus = 'local';
+                appComponent.loadFromLocalStorage();
+                
+                // Override cloud saving callbacks to use safe local storage hooks instead
+                window.pushStateToCloud = function(items, bags) {
+                    localStorage.setItem('knk_packing_items', JSON.stringify(items));
+                    localStorage.setItem('knk_packing_bags', JSON.stringify(bags));
+                    appComponent.syncStatus = 'local';
+                };
+                return;
+            }
+
+            try {
+                // Initialize App & Secure Realtime Framework Hooks
+                const app = initializeApp(firebaseConfig);
+                const db = getFirestore(app);
+                const auth = getAuth(app);
+
+                signInAnonymously(auth).then((userCredential) => {
+                    // Point synchronization towards a singular, accessible travel document path
+                    const syncDocRef = doc(db, "artifacts", "knk_packing_planner_shared", "public", "data");
+
+                    // Establish live streaming downward listeners 
+                    onSnapshot(syncDocRef, (snapshot) => {
+                        if (snapshot.exists()) {
+                            const cloudData = snapshot.data();
+                            appComponent.updateStateFromCloud(cloudData.items || [], cloudData.bags || []);
+                        } else {
+                            // Initialize first-time dataset state configuration maps if database is dry
+                            appComponent.seedInitialData();
+                        }
+                    }, (error) => {
+                        console.error("Cloud snapshot listener error:", error);
+                        appComponent.syncStatus = 'error';
+                    });
+
+                    // Establish safe write hooks back to the cloud
+                    window.pushStateToCloud = async function(items, bags) {
+                        appComponent.syncStatus = 'syncing';
+                        try {
+                            await setDoc(syncDocRef, {
+                                items: JSON.parse(JSON.stringify(items)),
+                                bags: JSON.parse(JSON.stringify(bags)),
+                                updatedAt: Date.now()
+                            }, { merge: true });
+                            appComponent.syncStatus = 'synced';
+                        } catch (e) {
+                            console.error("Cloud push failed:", e);
+                            appComponent.syncStatus = 'error';
+                        }
+                    };
+                }).catch((error) => {
+                    console.error("Anonymous Authentication failed:", error);
+                    appComponent.syncStatus = 'error';
+                });
+            } catch (err) {
+                console.error("Firebase connection initialization failed:", err);
+                appComponent.syncStatus = 'error';
+            }
+        };
+    </script>
+
+    <!-- Main Dynamic Layout Javascript Engine Logic -->
+    <script>
+        function packingApp() {
+            return {
+                activeTab: 'checklist',
+                activeCategory: 'all',
+                activeBag: 'all',
+                showResetModal: false,
+                showRestoreModal: false,
+                syncStatus: 'syncing', // syncing, synced, local, error
+                newItem: { name: '', category: 'priority', bagId: 'unassigned', totalQty: 1 },
+                newBagName: '', // Corrected ReferenceError property
+                categories: [
+                    { id: 'priority', name: 'High Priority & Docs', icon: '📋' },
+                    { id: 'baby', name: 'Toddler Gear (Nico)', icon: '👶' },
+                    { id: 'clothing_nico', name: "Nico's Clothing", icon: '👕' },
+                    { id: 'clothing_adults', name: "Adult Clothing", icon: '👔' },
+                    { id: 'toiletries', name: 'Toiletries & Health', icon: '🧴' },
+                    { id: 'electronics', name: 'Electronics', icon: '💻' },
+                    { id: 'carryon', name: 'Carry-On & Flight', icon: '✈️' }
+                ],
+                bags: [],
+                items: [],
+                aiSmartAddQuery: '',
+                aiSmartAddLoading: false,
+                aiSmartAddStatus: '',
+
+                initApp() {
+                    // Register local component to await Firebase attachment loop trigger hooks
+                    setTimeout(() => {
+                        if (typeof window.setupFirebaseSync === 'function') {
+                            window.setupFirebaseSync(this);
+                        } else {
+                            this.syncStatus = 'local';
+                            this.loadFromLocalStorage();
+                        }
+                    }, 400);
+                },
+
+                loadFromLocalStorage() {
+                    const localItems = localStorage.getItem('knk_packing_items');
+                    const localBags = localStorage.getItem('knk_packing_bags');
+                    if (localItems && localBags) {
+                        this.items = JSON.parse(localItems);
+                        this.bags = JSON.parse(localBags);
+                    } else {
+                        this.seedInitialData();
+                    }
+                },
+
+                updateStateFromCloud(cloudItems, cloudBags) {
+                    this.items = cloudItems;
+                    this.bags = cloudBags;
+                    this.syncStatus = 'synced';
+                },
+
+                seedInitialData() {
+                    this.bags = [
+                        { id: 'unassigned', name: '🎒 Unassigned / Loose' },
+                        { id: 'kieran-suitcase', name: "🧳 Kieran's Suitcase" },
+                        { id: 'karen-suitcase', name: "🧳 Karen's Suitcase" },
+                        { id: 'nico-suitcase', name: "👶 Nico's Suitcase" },
+                        { id: 'carry-on', name: '✈️ Carry-On Backpack' }
+                    ];
+                    this.loadDefaultItems();
+                    this.triggerCloudWrite();
+                },
+
+                triggerCloudWrite() {
+                    if (typeof window.pushStateToCloud === 'function') {
+                        window.pushStateToCloud(this.items, this.bags);
+                    } else {
+                        // Safe Local Storage write backup to prevent lost data before setup
+                        localStorage.setItem('knk_packing_items', JSON.stringify(this.items));
+                        localStorage.setItem('knk_packing_bags', JSON.stringify(this.bags));
+                    }
+                },
+
+                toggleItemFull(id) {
+                    const item = this.items.find(i => i.id === id);
+                    if (item) {
+                        item.packedQty = (item.packedQty === item.totalQty) ? 0 : item.totalQty;
+                        this.triggerCloudWrite();
+                    }
+                },
+
+                adjustPacked(id, amount) {
+                    const item = this.items.find(i => i.id === id);
+                    if (item) {
+                        const nextVal = item.packedQty + amount;
+                        if (nextVal >= 0 && nextVal <= item.totalQty) {
+                            item.packedQty = nextVal;
+                            this.triggerCloudWrite();
+                        }
+                    }
+                },
+
+                updateTotalQty(id, value) {
+                    const item = this.items.find(i => i.id === id);
+                    if (item) {
+                        const nextLimit = Math.max(1, parseInt(value) || 1);
+                        item.totalQty = nextLimit;
+                        item.packedQty = Math.min(item.packedQty, nextLimit);
+                        this.triggerCloudWrite();
+                    }
+                },
+
+                updateItemBag(itemId, bagId) {
+                    const item = this.items.find(i => i.id === itemId);
+                    if (item) {
+                        item.bagId = bagId;
+                        this.triggerCloudWrite();
+                    }
+                },
+
+                addItem() {
+                    if (!this.newItem.name.trim()) return;
+                    const cleanQty = Math.max(1, parseInt(this.newItem.totalQty) || 1);
+                    this.items.push({
+                        id: 'item-' + Date.now() + Math.random().toString(36).substr(2, 4),
+                        category: this.newItem.category,
+                        bagId: this.newItem.bagId,
+                        name: this.newItem.name.trim(),
+                        notes: 'Custom Travel Item',
+                        totalQty: cleanQty,
+                        packedQty: 0
+                    });
+                    this.newItem.name = '';
+                    this.newItem.totalQty = 1;
+                    this.triggerCloudWrite();
+                },
+
+                deleteItem(id) {
+                    this.items = this.items.filter(i => i.id !== id);
+                    this.triggerCloudWrite();
+                },
+
+                addBag() {
+                    if (!this.newBagName.trim()) return;
+                    this.bags.push({ id: 'bag-' + Date.now(), name: '🧳 ' + this.newBagName.trim() });
+                    this.newBagName = '';
+                    this.triggerCloudWrite();
+                },
+
+                deleteBag(bagId) {
+                    if (bagId === 'unassigned') return;
+                    this.items.forEach(item => { if (item.bagId === bagId) item.bagId = 'unassigned'; });
+                    this.bags = this.bags.filter(b => b.id !== bagId);
+                    if (this.activeBag === bagId) this.activeBag = 'all';
+                    this.triggerCloudWrite();
+                },
+
+                openResetModal() { this.showResetModal = true; },
+                resetListConfirmed() {
+                    this.items.forEach(i => i.packedQty = 0);
+                    this.triggerCloudWrite();
+                    this.showResetModal = false;
+                },
+
+                openRestoreModal() { this.showRestoreModal = true; },
+                restoreListConfirmed() {
+                    this.loadDefaultItems();
+                    this.triggerCloudWrite();
+                    this.showRestoreModal = false;
+                },
+
+                filteredItems(categoryId) {
+                    return this.items.filter(i => i.category === categoryId && (this.activeBag === 'all' || (i.bagId || 'unassigned') === this.activeBag));
+                },
+
+                getTotalCount() { return this.items.reduce((sum, item) => sum + (item.totalQty || 1), 0); },
+                getPackedCount() { return this.items.reduce((sum, item) => sum + (item.packedQty || 0), 0); },
+                getProgressPercent() { const total = this.getTotalCount(); return total === 0 ? 0 : (this.getPackedCount() / total) * 100; },
+                getTotalCountInCategory(catId) { return this.items.filter(i => i.category === catId).reduce((sum, item) => sum + (item.totalQty || 1), 0); },
+                getPackedCountInCategory(catId) { return this.items.filter(i => i.category === catId).reduce((sum, item) => sum + (item.packedQty || 0), 0); },
+                getItemsCountInBag(bagId) { return this.items.filter(i => i.bagId === bagId).reduce((sum, item) => sum + (item.totalQty || 1), 0); },
+                getCategoryName(catId) { const match = this.categories.find(c => c.id === catId); return match ? match.name : 'Other'; },
+                isItemAlreadyInList(name) { return this.items.some(i => i.name.toLowerCase().trim() === name.toLowerCase().trim()); },
+                printList() { window.print(); },
+
+                loadDefaultItems() {
+                    this.items = [
+                        { id: 1, category: 'priority', bagId: 'carry-on', name: 'Passports', notes: 'Verify minimum 6 months validity (Kieran, Karen, Nico)', totalQty: 3, packedQty: 0 },
+                        { id: 2, category: 'priority', bagId: 'carry-on', name: 'Visas or ETA approvals', notes: 'Bring printed copies', totalQty: 3, packedQty: 0 },
+                        { id: 3, category: 'priority', bagId: 'carry-on', name: 'Flight tickets', notes: 'Digital copies saved offline', totalQty: 3, packedQty: 0 },
+                        { id: 5, category: 'priority', bagId: 'carry-on', name: 'Birth certificate for Nico', notes: 'Border control check', totalQty: 1, packedQty: 0 },
+                        { id: 10, category: 'baby', bagId: 'nico-suitcase', name: "Nico's Custom Cutlery", notes: 'In lightweight travel container', totalQty: 1, packedQty: 0 },
+                        { id: 11, category: 'baby', bagId: 'carry-on', name: "Nico's Sipper cups / Straw bottles", totalQty: 2, packedQty: 0 },
+                        { id: 12, category: 'baby', bagId: 'nico-suitcase', name: "Nico's Travel bibs (Silicone)", totalQty: 2, packedQty: 0 },
+                        { id: 15, category: 'baby', bagId: 'carry-on', name: "Nico's Comfort lovey & pacifiers", totalQty: 2, packedQty: 0 },
+                        { id: 16, category: 'baby', bagId: 'nico-suitcase', name: "Nico's Sleep sacks", totalQty: 2, packedQty: 0 },
+                        { id: 17, category: 'baby', bagId: 'unassigned', name: 'Lightweight stroller with rain cover', totalQty: 1, packedQty: 0 },
+                        { id: 20, category: 'clothing_nico', bagId: 'nico-suitcase', name: "Nico's T-Shirts & Tops", totalQty: 7, packedQty: 0 },
+                        { id: 21, category: 'clothing_nico', bagId: 'nico-suitcase', name: "Nico's Bodysuits", notes: 'For base layering allotments', totalQty: 3, packedQty: 0 },
+                        { id: 22, category: 'clothing_nico', bagId: 'nico-suitcase', name: "Nico's Pants & Trousers", totalQty: 5, packedQty: 0 },
+                        { id: 23, category: 'clothing_nico', bagId: 'nico-suitcase', name: "Nico's Warm Sweaters & Hoodies", totalQty: 4, packedQty: 0 },
+                        { id: 25, category: 'clothing_nico', bagId: 'nico-suitcase', name: "Nico's Waterproof puddle suit", totalQty: 1, packedQty: 0 },
+                        { id: 27, category: 'clothing_nico', bagId: 'nico-suitcase', name: "Nico's Socks Allotment", totalQty: 8, packedQty: 0 },
+                        { id: 29, category: 'clothing_adults', bagId: 'kieran-suitcase', name: "Kieran's Shirts & Tops Loop", totalQty: 8, packedQty: 0 },
+                        { id: 30, category: 'clothing_adults', bagId: 'kieran-suitcase', name: "Kieran's Pants & Trousers", totalQty: 4, packedQty: 0 },
+                        { id: 33, category: 'clothing_adults', bagId: 'kieran-suitcase', name: "Kieran's Waterproof Jacket", totalQty: 1, packedQty: 0 },
+                        { id: 129, category: 'clothing_adults', bagId: 'karen-suitcase', name: "Karen's Shirts & Tops Loop", totalQty: 8, packedQty: 0 },
+                        { id: 130, category: 'clothing_adults', bagId: 'karen-suitcase', name: "Karen's Pants & Trousers", totalQty: 4, packedQty: 0 },
+                        { id: 133, category: 'clothing_adults', bagId: 'karen-suitcase', name: "Karen's Waterproof Jacket", totalQty: 1, packedQty: 0 },
+                        { id: 41, category: 'toiletries', bagId: 'nico-suitcase', name: 'Diapers / Nappies for Nico', notes: 'First 48 Hours fallback', totalQty: 15, packedQty: 0 },
+                        { id: 42, category: 'toiletries', bagId: 'carry-on', name: 'Travel diaper baby wipes', totalQty: 2, packedQty: 0 },
+                        { id: 47, category: 'toiletries', bagId: 'carry-on', name: 'Family First Aid kit (Calpol)', totalQty: 1, packedQty: 0 },
+                        { id: 50, category: 'electronics', bagId: 'carry-on', name: 'UK Plug Adapters (Type G)', totalQty: 3, packedQty: 0 },
+                        { id: 54, category: 'electronics', bagId: 'carry-on', name: 'Tablet with offline videos for Nico', totalQty: 1, packedQty: 0 }
+                    ];
+                },
+
+                async runAISmartAdd() {
+                    this.aiSmartAddLoading = true;
+                    this.aiSmartAddStatus = 'Connecting to Gemini model...';
+                    const prompt = `Pack: "${this.aiSmartAddQuery}". Return JSON array of objects with keys "name", "category", "quantity", "notes". Categories: "priority", "baby", "clothing_nico", "clothing_adults", "toiletries", "electronics", "carryon".`;
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=`;
+                    try {
+                        const response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } })
+                        });
+                        const result = await response.json();
+                        const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                        if (jsonText) {
+                            const newParsedItems = JSON.parse(jsonText);
+                            newParsedItems.forEach(item => {
+                                let qty = 1; if (item.quantity) { const m = String(item.quantity).match(/\d+/); if (m) qty = parseInt(m[0]); }
+                                this.items.push({ id: 'item-' + Date.now() + Math.random(), category: item.category, bagId: 'unassigned', name: item.name, notes: item.notes || 'Added via AI', totalQty: qty, packedQty: 0 });
+                            });
+                            this.triggerCloudWrite();
+                            this.aiSmartAddStatus = `Added items successfully!`;
+                            this.aiSmartAddQuery = '';
+                        }
+                    } catch (error) {
+                        this.aiSmartAddStatus = 'Failed to interpret parser criteria.';
+                    } finally { this.aiSmartAddLoading = false; }
+                }
+            };
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</body>
+</html>
